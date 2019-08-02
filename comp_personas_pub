@@ -1,0 +1,935 @@
+#delimit;
+clear;
+cap clear;
+cap log close;
+scalar drop _all;
+set mem 400m;
+set more off;
+
+*Este programa debe ser utilizado con el Software Stata 
+versión 8 o posterior. 
+
+Todas las bases de datos deben estar en formato *.dta
+
+En este programa se utilizan las siguientes bases del MCS-ENIGH 2010, 2012, 2014
+y 2016 renombrándolas de la siguiente forma:
+
+Base de población: Poblacion.dta
+Base de trabajos: Trabajos.dta
+Base de concentrado: Concentrado.dta
+
+Adiccionalmente se utilizan las siguientes bases insumo que se generan al correr 
+el programa que replica las estimaciones de pobreza:
+
+Base del indicador de carencia de rezago educativo: ic_rezedu10
+                                                    ic_rezedu12
+													ic_rezedu14
+
+Base del indicador de carencia por acceso a la seguridad social: ic_segsoc10
+                                                                 ic_segsoc12
+																 ic_segsoc14
+																 
+Base de pobreza final: pobreza_10
+                       pobreza_12
+					   pobreza_14
+
+*Este programa calcula indicadores complementarios a nivel persona asociados a las dimensiones 
+de educación, salud, seguridad social y el indicador de razon de ingreso total del décimo y primer decil
+para los años 2010, 2012 y 2014.
+
+
+Creación de Globals (gl); 
+
+gl data_10="C:\Indicadores complementarios 2010-2016\MCS\2010";
+gl data_12="C:\Indicadores complementarios 2010-2016\MCS\2012";
+gl data_14="C:\Indicadores complementarios 2010-2016\MCS\2014";
+gl data_16="C:\Indicadores complementarios 2010-2016\MCS\2016";
+
+gl data_pob="C:\Indicadores complementarios 2010-2016\MCS\pobreza";
+gl bases="C:\Indicadores complementarios 2010-2016\temp";
+gl bases_pob="C:\Indicadores complementarios 2010-2016\temp\bases_finales";
+gl log="C:\Indicadores complementarios 2010-2016\log";
+
+log using "$log\indicomp_persona_MCS2010-2016.txt", text replace;
+
+**********************************************************************
+*PARTE 1. Construcción de indicadores complementarios a nivel persona
+**********************************************************************;
+
+*EDUCACIÓN
+************************************************;
+use "$data_10\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor est_dis upm ubica_geo;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral10.dta", replace;
+
+use "$data_12\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor_hog est_dis upm ubica_geo;
+rename factor_hog factor;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral12.dta", replace;
+
+use "$data_14\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor_hog est_dis upm ubica_geo;
+rename factor_hog factor;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral14.dta", replace;
+
+use "$data_16\Concentrado.dta", clear;
+keep folioviv foliohog tam_loc factor est_dis upm ubica_geo;
+sort folioviv foliohog;
+save "$bases\diseño_muestral16.dta", replace;
+
+use "$data_10\Poblacion.dta", clear;
+save "$bases\poblacion10.dta", replace;
+
+use "$data_12\poblacion.dta", clear;
+save "$bases\poblacion12.dta", replace;
+
+use "$data_14\poblacion.dta", clear;
+rename alfabetism alfabe, replace;
+save "$bases\poblacion14.dta", replace; 
+
+use "$data_16\poblacion.dta", clear;
+rename alfabetism alfabe, replace;
+save "$bases\poblacion16.dta", replace; 
+
+*VARIABLES AUXILIARES-EDUCACIÓN
+************************************************;
+foreach x in 10 12 14 16{;
+
+use "$bases\poblacion`x'.dta", clear;
+*Población objeto: no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+
+*Parentesco;
+gen par=.;
+replace par=1 if (parentesco>="100" & parentesco<"200");
+replace par=2 if (parentesco>="200" & parentesco<"300");
+replace par=3 if (parentesco>="300" & parentesco<"400");
+replace par=4 if parentesco=="601";
+replace par=5 if parentesco=="615";
+recode par (.=6) if  par==.;
+label var par "Integrantes que tienen acceso por otros miembros 20`x'";
+label define par       1 "Jefe o jefa del hogar" 
+                       2 "Cónyuge del  jefe/a" 
+                       3 "Hijo del jefe/a" 
+                       4 "Padre o Madre del jefe/a"
+                       5 "Suegro del jefe/a"
+                       6 "Sin parentesco directo";
+label value par par;
+
+*Total de integrantes del hogar;
+gen ind=1;
+
+if `x'==16{;
+egen tot_ind=sum(ind), by (folioviv foliohog);
+
+keep folioviv foliohog numren edad alfabe par;
+
+sort folioviv foliohog numren;
+*Une base de rezago educativo;
+merge folioviv foliohog numren using "$data_pob\pobreza_`x'\ic_rezedu`x'.dta";
+tab _merge;
+drop _merge;
+
+sort folioviv foliohog numren;
+*Une base de diseño muestral;
+merge folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog numren;
+
+};
+
+else{;
+egen tot_ind=sum(ind), by (proyecto folioviv foliohog);
+
+keep proyecto folioviv foliohog numren edad alfabe par;
+
+sort proyecto folioviv foliohog numren;
+*Une base de rezago educativo;
+merge proyecto folioviv foliohog numren using "$data_pob\pobreza_`x'\ic_rezedu`x'.dta";
+tab _merge;
+drop _merge;
+
+sort proyecto folioviv foliohog numren;
+*Une base de diseño muestral;
+merge proyecto folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog numren;
+};
+
+*Educación Básica obligatoria;
+gen educ_basicap=.;
+replace educ_basicap=1 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) & (niv_ed==0 | niv_ed==1);
+replace educ_basicap=1 if  (edad>=16 & edad!=.) & (anac_e<=1981 & anac_e!=.) & (niv_ed==0| niv_ed==1);
+replace educ_basicap=0 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) & ( niv_ed==2);
+replace educ_basicap=0 if  (edad>=16 & edad!=.) & (anac_e<=1981 & anac_e!=.) & ( niv_ed==2);
+
+*Identifica a las personas que no saben leer ni escribir un recado;
+gen leerEscr=.;
+replace leerEscr=0 if alfabe=="1";
+replace leerEscr=1 if alfabe=="2";
+
+label define escr 0 "Si sabe" 1 "No sabe";
+label value  leerEscr escr ;
+
+if `x'==16{;
+keep folioviv foliohog numren factor est_dis upm ubica_geo leerEscr edad educ_basicap inas_esc;
+gen año=20`x';
+order año folioviv foliohog numren factor leerEscr edad educ_basicap inas_esc;
+};
+
+else{;
+keep proyecto folioviv foliohog numren factor est_dis upm ubica_geo leerEscr edad educ_basicap inas_esc;
+gen año=20`x';
+order año proyecto folioviv foliohog numren factor leerEscr edad educ_basicap inas_esc;
+};
+
+sort año folioviv foliohog numren;
+save "$bases\Indcomp_edu`x'.dta", replace;
+};
+
+use "$bases\Indcomp_edu10.dta", clear;
+append using "$bases\Indcomp_edu12.dta";
+append using "$bases\Indcomp_edu14.dta";
+append using "$bases\Indcomp_edu16.dta";
+sort año folioviv foliohog numren;
+save "$bases_pob\Indcomp_edu.dta", replace;
+
+*SALUD
+************************************************;
+
+*VARIABLES AUXILIARES-SALUD
+************************************************;
+
+foreach x in 10 12 14 16{;
+
+use "$bases\poblacion`x'.dta", clear;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+
+destring peso, replace;
+recode peso (1=0) (2=1);
+label define peso 0 "Sí" 
+                  1 "No";
+label value peso peso;
+
+destring diabetes, replace;
+recode diabetes (1=0) (2=1);
+label define diabetes 0 "Sí" 
+                      1 "No";
+label value diabetes diabetes;
+
+destring pres_alta, replace;
+recode pres_alta (1=0) (2=1);
+label define pres_alta 0 "Sí" 
+                       1 "No";
+label value pres_alta pres_alta;
+
+if `x'==16{;
+keep folioviv foliohog numren peso diabetes pres_alta;
+sort folioviv foliohog numren;
+};
+
+else{;
+keep proyecto folioviv foliohog numren peso diabetes pres_alta;
+sort proyecto folioviv foliohog numren;
+};
+
+save "$bases\aten_medica`x'.dta", replace;
+};
+			
+foreach x in 10 12 14 16{;
+
+use "$bases\poblacion`x'.dta", clear;
+
+*Población objeto: no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+
+if `x'==16{;
+keep folioviv foliohog numren edad;
+
+*Une atención médica;
+sort folioviv foliohog numren;	
+merge folioviv foliohog using "$bases\aten_medica`x'.dta";
+tab _merge;
+drop _merge;
+
+sort folioviv foliohog;
+*Une diseño muestral;
+merge folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+
+keep folioviv foliohog factor est_dis upm numren pres_alta diabetes peso edad;
+gen año=20`x';
+order folioviv foliohog numren pres_alta diabetes peso edad;
+sort año folioviv foliohog numren;
+};
+
+else{;
+keep proyecto folioviv foliohog numren edad;
+
+*Une atención médica;
+sort proyecto folioviv foliohog numren;	
+merge proyecto folioviv foliohog using "$bases\aten_medica`x'.dta";
+tab _merge;
+drop _merge;
+
+sort proyecto folioviv foliohog;
+*Une diseño muestral;
+merge proyecto folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+
+keep proyecto folioviv foliohog factor est_dis upm numren pres_alta diabetes peso edad;
+gen año=20`x';
+order proyecto folioviv foliohog numren pres_alta diabetes peso edad;
+sort año proyecto folioviv foliohog numren;
+};
+save "$bases\Indcomp_salud`x'.dta", replace;
+};
+
+use "$bases\Indcomp_salud10.dta", clear;
+append using "$bases\Indcomp_salud12.dta";
+append using "$bases\Indcomp_salud14.dta";
+append using "$bases\Indcomp_salud16.dta";
+sort año folioviv foliohog numren;
+save "$bases_pob\Indcomp_salud.dta", replace;
+
+*SEGURIDAD SOCIAL
+************************************************;
+
+use "$data_10\Trabajos.dta", clear;
+destring subor indep tiene_suel pago pres_1 pres_6 pres_8 pres_9 pres_17 pres_18, replace;
+save "$bases\trabajos10.dta", replace;
+
+use "$data_12\trabajos.dta", clear;
+destring subor indep tiene_suel pago pres_1 pres_6 pres_8 pres_9 pres_17 pres_18, replace;
+rename id_trabajo numtrab;
+save "$bases\trabajos12.dta", replace;
+
+use "$data_14\trabajos.dta", clear;
+destring subor indep tiene_suel pago pres_1 pres_6 pres_8 pres_9 pres_17 pres_18, replace;
+rename id_trabajo numtrab;
+save "$bases\trabajos14.dta", replace;
+
+use "$data_16\trabajos.dta", clear;
+destring subor indep tiene_suel pago pres_7 pres_12 pres_14 pres_15 pres_23 pres_24, replace;
+rename id_trabajo numtrab;
+save "$bases\trabajos16.dta", replace;
+
+
+foreach x in 10 12 14 16{;
+
+use "$bases\poblacion`x'.dta",clear;
+destring segsoc, replace;
+recode segsoc (1=0);
+recode segsoc (2=1);
+label define segsoc 0 "Sí" 
+                    1 "No";
+label value segsoc segsoc;
+
+if `x'==16{;
+keep folioviv foliohog numren segsoc;
+sort folioviv foliohog numren;
+};
+
+else{;
+keep proyecto folioviv foliohog numren segsoc;
+sort proyecto folioviv foliohog numren;
+};
+
+save "$bases\segsoc`x'.dta",replace;
+};
+
+*VARIABLES AUXILIARES-SEGURIDAD SOCIAL
+************************************************;
+
+foreach x in 10 12 14 16{;
+ 
+*Prestaciones laborales;
+use "$bases\trabajos`x'.dta", clear;
+
+*Tipo de trabajador: identifica la población subordinada e independiente;
+
+*Subordinados;
+gen tipo_trab=.;
+replace tipo_trab=1 if subor==1;
+
+*Independientes que reciben un pago;
+replace tipo_trab=2 if subor==2 & indep==1 & tiene_suel==1;
+replace tipo_trab=2 if subor==2 & indep==2 & pago==1;
+
+*Independientes que no reciben un pago;
+replace tipo_trab=3 if subor==2 & indep==1 & tiene_suel==2;
+replace tipo_trab=3 if subor==2 & indep==2 & (pago==2 | pago==3);
+
+*Subordinados que reciben un pago;
+replace tipo_trab=4 if subor==1 & tiene_suel==1;
+replace tipo_trab=4 if subor==1 & pago==1;
+
+*Subordinados que no reciben un pago;
+replace tipo_trab=5 if subor==1 & tiene_suel==2;
+replace tipo_trab=5 if subor==1 & (pago==2 | pago==3);
+
+if `x'==16{;
+
+*Prestaciones laborales: incapacidad en caso de enfermedad o maternidad con goce de sueldo;
+gen inclab=0 if pres_7==.;
+replace inclab=1 if pres_7==7;
+
+*Prestaciones laborales: Guarderías y estancias infantiles;
+gen guarlab=0 if pres_12==.;
+replace guarlab=1 if pres_12==12;
+
+*Prestaciones laborales: AFORE o SAR;
+gen aforlab=0 if pres_14==.;
+replace aforlab=1 if pres_14==14;
+
+*Prestaciones laborales: seguro de vida;
+gen svlab=0 if pres_15==.;
+replace svlab=1 if pres_15==15;
+
+*Prestaciones laborales: pensión en caso de invalidez;
+gen invzlab=0 if pres_23==.;
+replace invzlab=1 if pres_23==23;
+
+*Prestaciones laborales: Pensión en caso de fallecimiento;
+gen fallelab=0 if pres_24==.;
+replace fallelab=1 if pres_24==24;
+
+*Ocupación principal o secundaria;
+destring numtrab, replace;
+recode numtrab (1=1)(2=0), gen (ocupa);
+
+*Distinción de prestaciones en trabajo principal y secundario;
+keep folioviv foliohog numren numtrab tipo_trab inclab guarlab aforlab svlab invzlab fallelab ocupa pago tiene_suel subor;
+reshape wide tipo_trab inclab guarlab aforlab svlab invzlab fallelab ocupa pago tiene_suel subor, i(folioviv foliohog numren) j( numtrab);
+
+sort folioviv foliohog numren;
+save "$bases\prestaciones`x'.dta", replace;
+use "$bases\poblacion`x'.dta", clear; 
+keep folioviv foliohog numren inclab1_final aforlab1_final;
+sort folioviv foliohog numren;
+merge folioviv foliohog numren using "$bases\prestaciones`x'.dta";
+tab _merge;
+drop if _merge==1;
+drop _merge;
+
+
+drop inclab1;
+rename inclab1_final inclab1;
+
+drop aforlab1;
+rename aforlab1_final aforlab1;
+};
+
+else {;
+*Prestaciones laborales: incapacidad en caso de enfermedad o maternidad con goce de sueldo;
+gen inclab=0 if pres_1==.;
+replace inclab=1 if pres_1==1;
+
+*Prestaciones laborales: Guarderías y estancias infantiles;
+gen guarlab=0 if pres_6==.;
+replace guarlab=1 if pres_6==6;
+
+*Prestaciones laborales: AFORE o SAR;
+gen aforlab=0 if pres_8==.;
+replace aforlab=1 if pres_8==8;
+
+*Prestaciones laborales: seguro de vida;
+gen svlab=0 if pres_9==.;
+replace svlab=1 if pres_9==9;
+
+*Prestaciones laborales: pensión en caso de invalidez;
+gen invzlab=0 if pres_17==.;
+replace invzlab=1 if pres_17==17;
+
+*Prestaciones laborales: Pensión en caso de fallecimiento;
+gen fallelab=0 if pres_18==.;
+replace fallelab=1 if pres_18==18;
+
+*Ocupación principal o secundaria;
+destring numtrab, replace;
+recode numtrab (1=1)(2=0), gen (ocupa);
+
+*Distinción de prestaciones en trabajo principal y secundario;
+keep proyecto folioviv foliohog numren numtrab tipo_trab inclab guarlab aforlab svlab invzlab fallelab ocupa pago tiene_suel subor;
+reshape wide tipo_trab inclab guarlab aforlab svlab invzlab fallelab ocupa pago tiene_suel subor, i(proyecto folioviv foliohog numren) j( numtrab);
+};
+
+
+
+label var tipo_trab1 "Tipo de trabajo 1";
+label var tipo_trab2 "Tipo de trabajo 2";
+
+label var inclab1 "Incapacidad con goce de sueldo en ocupación principal";
+label value inclab1 cuenta;
+
+label var inclab2 "Incapacidad con goce de sueldo en ocupación secundaria";
+label value inclab2 cuenta;
+
+label var guarlab1 "Guarderías y estancias infantiles en ocupación principal";
+label value guarlab1 cuenta;
+
+label var guarlab2 "Guarderías y estancias infantiles en ocupación secundaria";
+label value guarlab2 cuenta;
+
+label var aforlab1 "Ocupación principal: SAR o Afore";
+label value aforlab1 cuenta;
+
+label var aforlab2 "Ocupación secundaria: SAR o Afore";
+label value aforlab2 cuenta;
+
+label var svlab1 "Seguro de vida en ocupación principal";
+label value svlab1 cuenta;
+
+label var svlab2 "Seguro de vida en ocupación secundaria";
+label value svlab2 cuenta;
+
+label var invzlab1 "Pensión en caso de invalidez en ocupación principal";
+label value invzlab1 cuenta;
+
+label var invzlab2 "Pensión en caso de invalidez en ocupación secundaria";
+label value invzlab2 cuenta;
+
+label var fallelab1 "Pensión para sus familiares en caso de fallecimiento en ocupación principal";
+label value fallelab1 cuenta;
+
+label var fallelab2 "Pensión para sus familiares en caso de fallecimiento en ocupación secundaria";
+label value fallelab2 cuenta;
+
+label var ocupa1 "Ocupación principal";
+recode ocupa2 (0=1)(.=0);
+label var ocupa2 "Ocupación secundaria";
+label define ocupa   0 "Sin ocupación secundaria" 
+                     1 "Con ocupación secundaria";
+label value ocupa2 ocupa;
+
+if `x'==16{;
+sort folioviv foliohog numren;
+save "$bases\prestaciones`x'.dta", replace; 
+
+use "$bases\poblacion`x'.dta", clear;
+
+*Población objeto:no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+drop segsoc;
+
+sort folioviv foliohog numren;
+save "$bases\pob_ord`x'.dta", replace;
+
+*Utiliza la base de indicador de carencia por acceso a la seguridad social;
+use "$data_pob\pobreza_`x'\ic_segsoc`x'.dta", clear;
+
+drop tipo_trab1 tipo_trab2 inclab1 inclab2 aforlab1 aforlab2; 
+sort folioviv foliohog numren;
+save "$bases\ic_segsocrec`x'.dta", replace; 
+
+use "$bases\pob_ord`x'.dta", clear;
+sort folioviv foliohog numren;
+merge folioviv foliohog numren using "$bases\ic_segsocrec`x'.dta";  
+tab _merge;
+drop _merge;
+
+sort folioviv foliohog numren;
+merge folioviv foliohog numren using "$bases\prestaciones`x'.dta"; 
+tab _merge;
+drop _merge;
+
+sort folioviv foliohog numren;
+merge folioviv foliohog numren using "$bases\segsoc`x'.dta"; 
+tab _merge;
+drop if _merge!=3;
+drop _merge;
+
+sort folioviv foliohog;
+merge folioviv foliohog using "$bases\diseño_muestral`x'.dta"; 
+tab _merge;
+drop _merge;
+};
+
+else{;
+sort proyecto folioviv foliohog numren;
+save "$bases\prestaciones`x'.dta", replace; 
+
+use "$bases\poblacion`x'.dta", clear;
+
+*Población objeto:no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+drop segsoc;
+
+sort proyecto folioviv foliohog numren;
+save "$bases\pob_ord`x'.dta", replace;
+
+*Utiliza la base de indicador de carencia por acceso a la seguridad social;
+use "$data_pob\pobreza_`x'\ic_segsoc`x'.dta", clear;
+
+drop tipo_trab1 tipo_trab2 inclab1 inclab2 aforlab1 aforlab2; 
+sort proyecto folioviv foliohog numren;
+save "$bases\ic_segsocrec`x'.dta", replace; 
+
+use "$bases\pob_ord`x'.dta", clear;
+sort proyecto folioviv foliohog numren;
+merge proyecto folioviv foliohog numren using "$bases\ic_segsocrec`x'.dta";  
+tab _merge;
+drop _merge;
+
+sort proyecto folioviv foliohog numren;
+merge proyecto folioviv foliohog numren using "$bases\prestaciones`x'.dta"; 
+tab _merge;
+drop _merge;
+
+sort proyecto folioviv foliohog numren;
+merge proyecto folioviv foliohog numren using "$bases\segsoc`x'.dta"; 
+tab _merge;
+drop if _merge!=3;
+drop _merge;
+
+sort proyecto folioviv foliohog;
+merge proyecto folioviv foliohog using "$bases\diseño_muestral`x'.dta"; 
+tab _merge;
+drop _merge;
+};
+
+
+*Pensión jefe/cónyuge;
+gen pension_conyuge=1 if par==2 & jub==1;
+replace pension_conyuge=0 if pension_conyuge==.;
+
+gen pension_jefe=1 if par==1 & jub==1;
+replace pension_jefe=0 if pension_jefe==.;
+
+if `x'==16{;
+egen pension_cony=sum(pension_conyuge), by(folioviv foliohog);
+egen pension_jef=sum(pension_jefe), by(folioviv foliohog);
+};
+
+else{;
+egen pension_cony=sum(pension_conyuge), by(proyecto folioviv foliohog);
+egen pension_jef=sum(pension_jefe), by(proyecto folioviv foliohog);
+};
+
+gen ic_asp=1 if jub==0 & pam==0 & ((par==2 & pension_jef==0) | (par==1 & pension_cony==0));
+replace ic_asp=1 if jub==0 & pam==0 & (par!=1 & par!=2);   
+replace ic_asp=0 if ic_asp==.;
+label var ic_asp "indicador de carencia al acceso del sistema de pensiones";
+label define ic_asp 1 "Sin acceso al sistema de pensiones";
+label value ic_asp ic_asp;
+
+*Población ocupada no asalariada;
+gen ocup_nasal=.;
+replace ocup_nasal=1 if (tipo_trab1==3 & tipo_trab2==.)| (tipo_trab1==5 & tipo_trab2==.);
+replace ocup_nasal=1 if tipo_trab1==3 & tipo_trab2==3;
+replace ocup_nasal=1 if tipo_trab1==5 & tipo_trab2==5; 
+replace ocup_nasal=1 if tipo_trab1==3 & tipo_trab2==5; 
+replace ocup_nasal=1 if tipo_trab1==5 & tipo_trab2==3;
+recode ocup_nasal (.=0);
+
+*Seguridad social voluntario;
+gen ic_avss=.;
+replace ic_avss=1 if ocup_nasal==1 & ((smcv==0 & smlab1==0) & (aforecv==0 & aforlab1==0)) | ((smcv==0 & smlab1==0 & smlab2==0) & (aforecv==0 & aforlab1==0 & aforlab2==0)) ;  
+recode ic_avss (.=0);
+label var ic_avss "Indicador de carencia de la seguridad social";
+label define ic_avss 1 "Sin servicios médicos ni Afore contratados voluntariamente o por prestación laboral";
+label value ic_avss ic_avss;
+
+*Población ocupada asalariada;
+gen ocup_asal=.;
+replace ocup_asal=1 if tipo_trab1==2 | tipo_trab1==4;
+replace ocup_asal=1 if tipo_trab2==2 | tipo_trab2==4;
+recode ocup_asal (.=0);
+
+*Seguridad social obligatorio;
+gen ic_aross=.;
+replace ic_aross=1 if ocup_asal==1 & (smlab1==0 & inclab1==0 & aforlab1==0) | (smlab1==0 & smlab2==0) & (inclab1==0 & inclab2==0) & (aforlab1==0 & aforlab2==0);
+recode ic_aross (.=0);
+label var ic_aross "Indicador de carencia al régimen obligatorio de seguridad social";
+label define ic_aross 1 "Sin servicios médicos ni incapacidad con goce de sueldo ni Afore como prestación laboral";
+label value ic_aross ic_aross;
+
+*Incapacidad en caso de enfermedad, accidente o maternidad;
+gen i_inclab=1 if (inclab1==1 & inclab2==0) | (inclab1==1 & inclab2==.) | (inclab2==1 & inclab1==0); 
+recode i_inclab (.=0);
+label var i_inclab "Indicador de acceso a incapacidad laboral";
+label define i_inclab 1 "Recibe como prestación laboral incapacidad en caso de enfermedad, accidente o maternidad"
+                      0 "No recibe prestación laboral de incapacidad";
+label value i_inclab i_inclab;
+
+*Guarderías y estancias infantiles;
+gen i_guarlab=1 if (guarlab1==1 & guarlab2==0) | (guarlab1==1 & guarlab2==.) | (guarlab2==1 & guarlab1==0); 
+recode i_guarlab (.=0); 
+label var i_guarlab "Indicador de acceso a guarderías y estancias infantiles";
+label define i_guarlab 1 "Recibe como prestación laboral guarderías y estancias infantiles" 
+                       0 "No recibe prestación laboral guarderías"; 
+label value i_guarlab i_guarlab;
+
+*SAR o Afore;
+gen i_aforlab=1 if (aforlab1==1 & aforlab2==0) | (aforlab1==1 & aforlab2==.) | (aforlab2==1 & aforlab1==0); 
+recode i_aforlab (.=0); 
+label var i_aforlab "Indicador de acceso a SAR o Afore";
+label define i_aforlab 1 "Recibe como prestación laboral SAR o Afore"
+                       0 "No recibe como prestación SAR o Afore";
+label value i_aforlab i_aforlab;
+
+*Seguro de vida;
+gen i_svlab=1 if (svlab1==1 & svlab2==0) | (svlab1==1 & svlab2==.) | (svlab2==1 & svlab1==0); 
+recode i_svlab (.=0); 
+label var i_svlab "Indicador de acceso a seguro de vida";
+label define i_svlab 1 "Recibe como prestación laboral seguro de vida"
+                     0 "No recibe como prestación seguro de vida";
+label value i_svlab i_svlab;
+
+*Pensión en caso de invalidez;
+gen i_invzlab=1 if (invzlab1==1 & invzlab2==0) | (invzlab1==1 & invzlab2==.) | (invzlab2==1 & invzlab1==0);
+recode i_invzlab (.=0);  
+label var i_invzlab "Indicador de acceso a pensión en caso de invalidez";
+label define i_invzlab 1 "Recibe como prestación laboral pensión en caso de invalidez"
+                       0 "No recibe prestación de invalidez";
+label value i_invzlab i_invzlab;
+
+*Pensión para familiares en caso de fallecimiento;
+gen i_fallelab=1 if (fallelab1==1 & fallelab2==0) | (fallelab1==1 & fallelab2==.) | (fallelab2==1 & fallelab1==0);
+recode i_fallelab (.=0); 
+label var i_fallelab "Indicador de acceso a pensión para sus familiares en caso de fallecimiento";
+label define i_fallelab 1 "Recibe como prestación laboral pensión para sus familiares en caso de fallecimiento"
+                        0 "No recibe pensión para sus familiares en caso de fallecimiento";
+label value i_fallelab i_fallelab; 
+
+if `x'==16{;
+keep folioviv foliohog numren factor segsoc pea edad ic_asp ic_avss ic_aross i_inclab i_guarlab 
+i_aforlab i_svlab i_invzlab i_fallelab ocup_nasal ocup_asal;
+
+gen año=20`x';
+order folioviv foliohog numren factor segsoc pea edad ic_asp ic_avss ic_aross i_inclab i_guarlab 
+i_aforlab i_svlab i_invzlab i_fallelab ocup_nasal ocup_asal;
+
+sort año folioviv foliohog numren;
+save "$bases\Indcomp_segsoc`x'.dta", replace; 
+};
+
+else {;
+keep proyecto folioviv foliohog numren factor segsoc pea edad ic_asp ic_avss ic_aross i_inclab i_guarlab 
+i_aforlab i_svlab i_invzlab i_fallelab ocup_nasal ocup_asal;
+
+gen año=20`x';
+order proyecto folioviv foliohog numren factor segsoc pea edad ic_asp ic_avss ic_aross i_inclab i_guarlab 
+i_aforlab i_svlab i_invzlab i_fallelab ocup_nasal ocup_asal;
+
+sort año proyecto folioviv foliohog numren;
+save "$bases\Indcomp_segsoc`x'.dta", replace; 
+};
+
+};
+
+use "$bases\Indcomp_segsoc10.dta", clear;
+append using "$bases\Indcomp_segsoc12.dta";
+append using "$bases\Indcomp_segsoc14.dta";
+append using "$bases\Indcomp_segsoc16.dta";
+sort año folioviv foliohog numren;
+save "$bases_pob\Indcomp_segsoc.dta", replace;
+
+*OTROS INDICADORES COMPLEMENTARIOS;
+************************************************;
+
+*VARIABLES AUXILIARES-OTROS INDICADORES COMPLEMENTARIOS
+*******************************************************;
+
+foreach x in 10 12 14{;
+
+*Se utiliza la base de pobreza;
+
+use "$data_pob\pobreza_`x'\pobreza_`x'.dta",clear;
+keep proyecto folioviv foliohog numren factor ictpc;
+
+xtile deciles_ictpc2 = ictpc [w=factor], nq(10);
+
+sum ictpc  [w=factor] if deciles_ictpc2==10;
+gen x10=r(sum);
+sum ictpc  [w=factor] if deciles_ictpc2==1;
+gen x1=r(sum);
+
+gen rzning=x10/x1;
+
+drop x*;
+
+keep proyecto folioviv foliohog numren factor rzning;
+gen año=20`x';
+sort año proyecto folioviv foliohog numren;
+save "$bases\Indcomp_otros`x'.dta", replace;
+};
+
+use "$bases\Indcomp_otros10.dta", clear;
+append using "$bases\Indcomp_otros12.dta";
+append using "$bases\Indcomp_otros14.dta";
+sort año proyecto folioviv foliohog numren;
+save "$bases_pob\Indcomp_otros.dta", replace;
+
+**************************************************
+*PARTE 2. Tabulados de indicadores complementarios
+**************************************************;
+
+di in green "INDICADORES COMPLEMENTARIOS: EDUCACIÓN";
+
+use "$bases_pob\Indcomp_edu.dta", clear;
+
+di in red "Analfabetismo";
+di in yellow "Porcentaje de personas de quince años o más que no saben leer ni escribir un recado";
+**************************************************************************************************;
+tabstat leerEscr [w=factor] if edad>=15, by (año);
+
+di in red "Educación básica obligatoria de acuerdo con grupos de edad";
+di in yellow "Porcentaje de la población de dieciseis años o más que no dispone de la educaión básica obligatoria";
+******************************************************************************************************************;
+tabstat educ_basicap [w=factor], by(año);
+
+di in yellow "De 16 a 19 años";
+tabstat educ_basicap [w=factor] if edad>=16 & edad<20, by(año);
+
+di in yellow "De 20 a 29 años";
+tabstat educ_basicap [w=factor] if edad>=20 & edad<30, by(año);
+
+di in yellow "De 30 a 39 años";
+tabstat educ_basicap [w=factor] if edad>=30 & edad<40, by(año);
+
+di in yellow "De 40 a 49 años";
+tabstat educ_basicap [w=factor] if edad>=40 & edad<50, by(año);
+
+di in yellow "De 50 a 59 años";
+tabstat educ_basicap [w=factor] if edad>=50 & edad<60, by(año);
+
+di in yellow "De 60 años o más";
+tabstat educ_basicap [w=factor] if edad>=60, by(año);
+
+di in red "Asistencia a la escuela de acuerdo con grupos de edad";
+di in yellow "Porcentaje de la población de 3 a 15 años que no asiste a la escuela según los grupos de edad";
+************************************************************************************************************;
+di in yellow "De 3 a 15 años";
+tabstat inas_esc [w=factor] if edad<=15 & edad>=3, by (año);
+
+di in yellow "De 3 a 5 años";
+tabstat inas_esc [w=factor] if edad<=5 & edad>=3, by (año);
+
+di in yellow "De 6 a 11 años";
+tabstat inas_esc [w=factor] if edad<=11 & edad>=6, by (año);
+
+di in yellow "De 12 a 15 años";
+tabstat inas_esc [w=factor] if edad<=15 & edad>=12, by (año);
+
+di in green "INDICADORES COMPLEMENTARIOS: SALUD";
+
+use "$bases_pob\Indcomp_salud.dta", clear;
+
+di in red "Utilización de servicios preventivos";
+di in red "Se consideran tres variables: control de peso y talla, la detección de diabetes
+y de hipertensión arterial";
+
+di in red "Control de peso y talla";
+di in yellow "Porcentaje de la población que en los últimos doce meses no ha sido pesada o medida 
+por un médico";
+*************************************************************************************************;
+tabstat peso [w=factor], by(año);
+
+di in red "Detección de diabetes";
+di in yellow "Porcentaje de la población mayor o igual a 30 años que en los últimos doce meses 
+no se ha tomado una muestra de sangre mediante punción para detectar diabetes";
+***********************************************************************************************;
+tabstat diabetes [w=factor] if edad>=30, by(año); 
+
+di in red "Detección de hipertensión arterial";
+di in yellow "Porcentaje de la población mayor o igual a 30 años que en los últimos doce meses 
+no se le ha medido la presión arterial";
+***********************************************************************************************;
+tabstat pres_alta [w=factor] if edad>=30,by(año); 
+
+di in green "INDICADORES COMPLEMENTARIOS: SEGURIDAD SOCIAL";
+
+use "$bases_pob\Indcomp_segsoc.dta", clear;
+
+di in red "Cobertura del sistema de seguridad social";
+di in yellow "Porcentaje de la población económicamente activa de dieciséis años de edad o más que nunca 
+ha cotizado a alguna institución de seguridad social";
+*****************************************************************************************************;
+tabstat segsoc [w=factor] if (pea>=1 & pea!=.) & (edad>=16 & edad!=.), by(año); 
+
+di in red "Acceso al sistema de pensiones";
+di in yellow "Porcentaje de población de sesenta y cinco años de edad o más que no percibe una jubilación 
+o pensión, no es cónyuge de una persona jubilada o pensionada ni recibe el apoyo del Programa de Adultos Mayores";
+*****************************************************************************************************************;
+tabstat ic_asp [w=factor] if edad>=65, by(año); 
+
+di in red "Acceso voluntario a la seguridad social";
+di in yellow "Porcentaje de la población ocupada no asalariada que no cuenta con servicios médicos 
+ni Afore contratados voluntariamente o por prestación laboral";
+**************************************************************************************************;
+tabstat ic_avss [w=factor] if ocup_nasal==1, by(año); 
+
+di in red "Acceso al régimen obligatorio de seguridad social";
+di in yellow "Porcentaje de la población ocupada y asalariada que no cuenta con servicios médicos, incapacidad 
+con goce de sueldo ni Afore como prestación laboral";
+**************************************************************************************************************;
+tabstat ic_aross [w=factor] if ocup_asal==1, by(año); 
+
+di in red "Prestaciones de la seguridad social";
+di in yellow "Porcentaje de la población ocupada y asalariada que declara disponer 
+de las prestaciones de seguridad social establecidas en la CPEUM";
+
+di in red "Incapacidad en caso de enfermedad accidente o maternidad";
+di in yellow "Porcentaje de población ocupada y asalariada que declara recibir como prestación laboral incapacidad 
+en caso de enfermedad, accidente o maternidad";
+******************************************************************************************************************;
+tabstat i_inclab [w=factor] if ocup_asal==1, by(año); 
+
+di in red "Guarderias y estancias infantiles";
+di in yellow "Porcentaje de población ocupada y asalariada que declara recibir como prestación laboral guarderías 
+y estancias infantiles";
+******************************************************************************************************************;
+tabstat i_guarlab [w=factor] if ocup_asal==1, by(año); 
+
+di in red "SAR o AFORE";
+di in yellow "Porcentaje de la población ocupada y asalariada que declara recibir como prestación laboral SAR o Afore";
+**********************************************************************************************************************;
+tabstat i_aforlab [w=factor] if ocup_asal==1 , by(año);
+
+di in red "Seguro de vida";
+di in yellow "Porcentaje de población ocupada y asalariada que declara recibir como prestación laboral seguro de vida";
+**********************************************************************************************************************;
+tabstat i_svlab [w=factor] if ocup_asal==1, by(año); 
+ 
+di in red "Pensión en caso de invalidez";
+di in yellow "Porcentaje de población ocupada y asalariada que declara recibir como prestación laboral pensión 
+en caso de invalidez";
+***************************************************************************************************************;
+tabstat i_invzlab [w=factor] if ocup_asal==1, by (año);  
+
+di in red "Pensión para sus familiares en caso de fellecimiento";
+di in yellow "Porcentaje de población ocupada y asalariada que declara recibir como prestación laboral pensión 
+para sus familiares en caso de fallecimiento";
+***************************************************************************************************************;
+tabstat i_fallelab [w=factor] if ocup_asal==1, by(año);  
+
+di in red "Población de 65 años de edad o más que nunca ha cotizado al sistema de seguridad social";
+di in yellow "Porcentaje de la población de sesenta y cinco años de edad o más que nunca ha cotizado al sistema 
+de seguridad social";
+***************************************************************************************************************;
+tabstat segsoc [w=factor] if edad>=65 & edad!=., by(año); 
+
+di in green "INDICADORES COMPLEMENTARIOS: OTROS";
+
+use "$bases_pob\Indcomp_otros.dta", clear;
+
+di in red "Razón entre el ingreso total del décimo decil y el ingreso total del primer decil";
+di in yellow "Cociente del ingreso total que concentra la población del décimo decil respecto al ingreso 
+que concentra la población del primer decil";
+***************************************************************************************************************;
+tabstat rzning [w=factor], by(año);
+
+log close;
