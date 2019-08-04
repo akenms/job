@@ -1,0 +1,913 @@
+#delimit;
+clear;
+cap clear;
+cap log close;
+scalar drop _all;
+set mem 400m;
+set more off;
+
+*Este programa debe ser utilizado con el Software Stata 
+versión 8 o posterior. 
+
+Todas las bases de datos deben estar en formato *.dta
+
+En este programa se utilizan las siguientes bases del MCS-ENIGH 2010, 2012 y 2014, 
+y MEC del MCS-ENIGH 2016 y 2018 renombrándolas de la siguiente forma:
+
+Base de población: poblacion.dta
+Base de concentrado: Concentrado.dta
+Base de hogares: hogares.dta
+Base de viviendas: viviendas.dta
+
+*Cabe mencionar que para 2010, debido a la falta de la base de viviendas.dta,
+se utiliza únicamente la base hogares.dta.
+Adicionalmente se utilizan las siguientes bases insumo que se generan al correr 
+el programa que replica las estimaciones de pobreza:
+
+Base del indicador de carencia de rezago educativo: ic_rezedu10
+                                                    ic_rezedu12
+													ic_rezedu14
+													ic_rezedu16
+													ic_rezedu18
+																 
+*Este programa calcula indicadores complementarios a nivel hogar o vivienda asociados a las dimensiones 
+de educación, salud y vivenda para los años 2010, 2012, 2014, 2016 y 2018.
+
+Creación de Globals (gl); 
+
+gl data_10="C:\Indicadores complementarios 2010-2018\MCS y MEC\MCS 2010";
+gl data_12="C:\Indicadores complementarios 2010-2018\MCS y MEC\MCS 2012";
+gl data_14="C:\Indicadores complementarios 2010-2018\MCS y MEC\MCS 2014";
+gl data_16="C:\Indicadores complementarios 2010-2018\MCS y MEC\MEC del MCS-ENIGH 2016";
+gl data_18="C:\Indicadores complementarios 2010-2018\MCS y MEC\MEC del MCS-ENIGH 2018";
+
+gl bases="C:\Indicadores complementarios 2010-2018\temp";
+gl base_final="C:\Indicadores complementarios 2010-2018\temp\bases_finales";
+gl log="C:\Indicadores complementarios 2010-2018\log";
+
+log using "$log\indicomp_hogar_MCS2010-2018.txt", text replace;
+
+*******************************************************************************
+*PARTE 1. Construcción de indicadores complementarios a nivel hogar o vivienda
+*******************************************************************************;
+
+use "$data_10\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor est_dis upm ubica_geo;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral10.dta", replace;
+
+use "$data_12\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor_hog est_dis upm ubica_geo;
+rename factor_hog factor;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral12.dta", replace;
+
+use "$data_14\Concentrado.dta", clear;
+keep proyecto folioviv foliohog tam_loc factor_hog est_dis upm ubica_geo;
+rename factor_hog factor;
+sort proyecto folioviv foliohog;
+save "$bases\diseño_muestral14.dta", replace;
+
+use "$data_16\Concentrado.dta", clear;
+keep folioviv foliohog tam_loc factor est_dis upm ubica_geo;
+sort folioviv foliohog;
+save "$bases\diseño_muestral16.dta", replace;
+
+use "$data_18\Concentrado.dta", clear;
+keep folioviv foliohog tam_loc factor est_dis upm ubica_geo;
+sort folioviv foliohog;
+save "$bases\diseño_muestral18.dta", replace;
+
+use "$data_10\poblacion.dta", clear;
+save "$bases\poblacion10.dta", replace;
+
+use "$data_12\poblacion.dta", clear;
+save "$bases\poblacion12.dta", replace;
+
+use "$data_14\poblacion.dta", clear;
+save "$bases\poblacion14.dta", replace;
+
+use "$data_16\poblacion.dta", clear;
+save "$bases\poblacion16.dta", replace;
+
+use "$data_18\poblacion.dta", clear;
+save "$bases\poblacion18.dta", replace;
+
+
+use "$data_10\hogares.dta", clear;
+rename dis_agua disp_agua;
+
+recode eqh4_n (-1=.);
+recode eqh10_n (-1=.);
+recode eqh12_n (-1=.);
+recode eqh11_n (-1=.);
+
+gen no_tele=cond(eqh4_n==0,1,0);
+replace no_tele=. if eqh4_n==.;
+gen no_lava=cond(eqh12_n==0,1,0);
+replace no_lava=. if eqh12_n==.;
+gen no_refri=cond(eqh10_n==0,1,0);
+replace no_refri=. if eqh10_n==.;
+gen no_estu=cond(eqh11_n==0,1,0);
+replace no_estu=. if eqh11_n==.;
+
+gen no_telef=cond(serv_1=="2",1,0);
+replace no_telef=. if serv_1=="";
+gen no_cel=cond(serv_2=="2",1,0);
+replace no_cel=. if serv_2=="";
+gen no_tvpaga=cond(serv_3=="2",1,0);
+replace no_tvpaga=. if serv_3=="";
+gen no_internet=cond(serv_4=="2",1,0);
+replace no_internet=. if serv_4=="";
+
+sort proyecto folioviv foliohog;
+save "$bases\hogares10.dta", replace;
+
+use "$data_12\hogares.dta", clear;
+rename factor_hog factor;
+
+gen no_tele=cond(num_tv==0,1,0);
+replace no_tele=. if num_tv==.;
+gen no_lava=cond(num_lavad==0,1,0);
+replace no_lava=. if num_lavad==.;
+gen no_refri=cond(num_refri==0,1,0);
+replace no_refri=. if num_refri==.;
+gen no_estu=cond(num_estuf==0,1,0);
+replace no_estu=. if num_estuf==.;
+
+gen no_telef=cond(telefono=="2",1,0);
+replace no_telef=. if telefono=="";
+gen no_cel=cond(celular=="2",1,0);
+replace no_cel=. if celular=="";
+gen no_tvpaga=cond(tv_paga=="2",1,0);
+replace no_tvpaga=. if tv_paga=="";
+gen no_internet=cond(conex_inte=="2",1,0);
+replace no_internet=. if conex_inte=="";
+
+sort proyecto folioviv foliohog;
+save "$bases\hogares12.dta", replace;
+
+use "$data_14\hogares.dta", clear;
+rename factor_hog factor;
+
+gen no_tele=cond(num_tva==0 & num_tvd==0,1,0);
+replace no_tele=. if num_tva==. & num_tvd==.;
+gen no_lava=cond(num_lavad==0,1,0);
+replace no_lava=. if num_lavad==.;
+gen no_refri=cond(num_refri==0,1,0);
+replace no_refri=. if num_refri==.;
+gen no_estu=cond(num_estuf==0,1,0);
+replace no_estu=. if num_estuf==.;
+
+gen no_telef=cond(telefono=="2",1,0);
+replace no_telef=. if telefono=="";
+gen no_cel=cond(celular=="2",1,0);
+replace no_cel=. if celular=="";
+gen no_tvpaga=cond(tv_paga=="2",1,0);
+replace no_tvpaga=. if tv_paga=="";
+gen no_internet=cond(conex_inte=="2",1,0);
+replace no_internet=. if conex_inte=="";
+
+sort proyecto folioviv foliohog;
+save "$bases\hogares14.dta", replace;
+
+use "$data_16\hogares.dta", clear;
+
+gen no_tele=cond(num_tva==0 & num_tvd==0,1,0);
+replace no_tele=. if num_tva==. & num_tvd==.;
+gen no_lava=cond(num_lavad==0,1,0);
+replace no_lava=. if num_lavad==.;
+gen no_refri=cond(num_refri==0,1,0);
+replace no_refri=. if num_refri==.;
+gen no_estu=cond(num_estuf==0,1,0);
+replace no_estu=. if num_estuf==.;
+
+gen no_telef=cond(telefono=="2",1,0);
+replace no_telef=. if telefono=="";
+gen no_cel=cond(celular=="2",1,0);
+replace no_cel=. if celular=="";
+gen no_tvpaga=cond(tv_paga=="2",1,0);
+replace no_tvpaga=. if tv_paga=="";
+gen no_internet=cond(conex_inte=="2",1,0);
+replace no_internet=. if conex_inte=="";
+
+sort folioviv foliohog;
+save "$bases\hogares16.dta", replace;
+
+use "$data_18\hogares.dta", clear;
+
+gen no_tele=cond(num_tva==0 & num_tvd==0,1,0);
+replace no_tele=. if num_tva==. & num_tvd==.;
+gen no_lava=cond(num_lavad==0,1,0);
+replace no_lava=. if num_lavad==.;
+gen no_refri=cond(num_refri==0,1,0);
+replace no_refri=. if num_refri==.;
+gen no_estu=cond(num_estuf==0,1,0);
+replace no_estu=. if num_estuf==.;
+
+gen no_telef=cond(telefono=="2",1,0);
+replace no_telef=. if telefono=="";
+gen no_cel=cond(celular=="2",1,0);
+replace no_cel=. if celular=="";
+gen no_tvpaga=cond(tv_paga=="2",1,0);
+replace no_tvpaga=. if tv_paga=="";
+gen no_internet=cond(conex_inte=="2",1,0);
+replace no_internet=. if conex_inte=="";
+
+sort folioviv foliohog;
+save "$bases\hogares18.dta", replace;
+
+
+use "$data_10\hogares.dta", clear;
+destring cua_coc coc_duer tenen escri eli_ba dis_agua dot_agua
+	     excus adm_ag, replace;
+collapse (sum) cua_coc coc_duer tenen escri eli_ba dis_agua dot_agua
+		 excus adm_ag, by(proyecto folioviv);
+recode cua_coc coc_duer tenen escri eli_ba dis_agua dot_agua excus adm_ag(0=.);
+rename dis_agua disp_agua;
+
+*Disposición de un cuarto para cocinar;
+gen dis_cuac=.;
+replace dis_cuac=0 if cua_coc!=.;
+replace dis_cuac=1 if cua_coc==2;
+replace dis_cuac=1 if cua_coc==1 & coc_duer==1;
+drop cua_coc coc_duer;
+
+*Tenencia de la vivienda; 
+gen ten_viv=0 if tenen!=. | escri!=.;
+replace ten_viv=1 if tenen==1 | tenen==2 | (( tenen>=3 & tenen<=4) & escri==3);
+drop tenen escri;
+
+*Disposición inadecuada de la basura;
+gen dis_basura=0 if eli_ba!=.;
+replace dis_basura=1 if (eli_ba>=4 & eli_ba<=8);
+drop eli_ba;
+
+*Frecuencia del abastecimiento de agua;
+gen dis_agua=0 if disp_agua!=. | dot_agua!=.;
+replace dis_agua=1 if (disp_agua>=3 & disp_agua<=6) | dot_agua==5;
+drop disp_agua dot_agua;
+
+*Disposición de sanitario en la vivienda;
+gen dis_exc=cond((excus==2)| (excus==1 &  adm_ag==3),1,0);
+replace dis_exc=. if excus==. |(excus==1 & adm_ag==.);
+
+sort proyecto folioviv;
+save "$bases\vivienda10.dta", replace;
+
+
+use "$data_12\viviendas.dta", clear;
+destring eli_basura cocina cocina_dor tenencia escrituras disp_agua dotac_agua
+		 excusado sanit_agua, replace;
+		
+*Disposición de un cuarto para cocinar;
+gen dis_cuac=.;
+replace dis_cuac=0 if cocina!=.;
+replace dis_cuac=1 if cocina==2;
+replace dis_cuac=1 if cocina==1 & cocina_dor==1;
+drop cocina cocina_dor;
+
+*Tenencia de la vivienda; 
+gen ten_viv=0 if tenencia!=. | escrituras!=.;
+replace ten_viv=1 if tenencia==1 | tenencia==2 | (( tenencia>=3 & tenencia<=4) & escrituras==3);
+drop tenencia escrituras;
+
+*Disposición inadecuada de la basura;
+gen dis_basura=0 if eli_basura!=.;
+replace dis_basura=1 if (eli_basura>=4 & eli_basura<=8);
+drop eli_basura;
+
+*Frecuencia del abastecimiento de agua;
+gen dis_agua=0 if disp_agua!=. | dotac_agua!=.;
+replace dis_agua=1 if (disp_agua>=3 & disp_agua<=6) | dotac_agua==5;
+drop disp_agua dotac_agua;
+
+*Disposición de sanitario en la vivienda;
+gen dis_exc=cond((excusado==2)| (excusado==1 &  sanit_agua==3),1,0);
+replace dis_exc=. if excusado==. |(excusado==1 & sanit_agua==.);
+
+sort proyecto folioviv;
+save "$bases\vivienda12.dta", replace;
+
+use "$data_14\viviendas.dta", clear;
+destring eli_basura cocina cocina_dor tenencia escrituras disp_agua dotac_agua
+		 excusado sanit_agua, replace;
+		
+*Disposición de un cuarto para cocinar;
+gen dis_cuac=.;
+replace dis_cuac=0 if cocina!=.;
+replace dis_cuac=1 if cocina==2;
+replace dis_cuac=1 if cocina==1 & cocina_dor==1;
+drop cocina cocina_dor;
+
+*Tenencia de la vivienda; 
+gen ten_viv=0 if tenencia!=. | escrituras!=.;
+replace ten_viv=1 if tenencia==1 | tenencia==2 | ((tenencia>=3 & tenencia<=4) & escrituras==3);
+drop tenencia escrituras;
+
+*Disposición inadecuada de la basura;
+gen dis_basura=0 if eli_basura!=.;
+replace dis_basura=1 if (eli_basura>=4 & eli_basura<=8);
+drop eli_basura;
+
+*Frecuencia del abastecimiento de agua;
+gen dis_agua=0 if disp_agua!=. | dotac_agua!=.;
+replace dis_agua=1 if (disp_agua>=3 & disp_agua<=7) | dotac_agua==5;
+drop disp_agua dotac_agua;
+
+*Disposición de sanitario en la vivienda;
+gen dis_exc=cond((excusado==2) | (excusado==1 &  sanit_agua==3),1,0);
+replace dis_exc=. if excusado==. |(excusado==1 & sanit_agua==.);
+
+sort proyecto folioviv;
+save "$bases\vivienda14.dta", replace;
+
+use "$data_16\viviendas.dta", clear;
+destring eli_basura cocina cocina_dor tenencia escrituras disp_agua dotac_agua
+		 excusado sanit_agua, replace;
+		 
+*Disposición de un cuarto para cocinar;
+gen dis_cuac=.;
+replace dis_cuac=0 if cocina!=.;
+replace dis_cuac=1 if cocina==2;
+replace dis_cuac=1 if cocina==1 & cocina_dor==1;
+drop cocina cocina_dor;
+
+*Tenencia de la vivienda; 
+gen ten_viv=0 if tenencia!=. | escrituras!=.;
+replace ten_viv=1 if tenencia==1 | tenencia==2 | ((tenencia>=3 & tenencia<=4) & escrituras==3);
+drop tenencia escrituras;
+
+*Disposición inadecuada de la basura;
+gen dis_basura=0 if eli_basura!=.;
+replace dis_basura=1 if (eli_basura>=4 & eli_basura<=8);
+drop eli_basura;
+
+*Frecuencia del abastecimiento de agua;
+gen dis_agua=0 if disp_agua!=. | dotac_agua!=.;
+replace dis_agua=1 if (disp_agua>=3 & disp_agua<=7) | dotac_agua==5;
+drop disp_agua dotac_agua;
+
+*Disposición de sanitario en la vivienda;
+gen dis_exc=cond((excusado==2)| (excusado==1 & sanit_agua==3),1,0);
+replace dis_exc=. if excusado==. | (excusado==1 & sanit_agua==.);
+
+sort folioviv;
+save "$bases\vivienda16.dta", replace;
+
+use "$data_18\viviendas.dta", clear;
+destring eli_basura cocina cocina_dor tenencia escrituras disp_agua dotac_agua
+		 excusado sanit_agua, replace;
+		 
+*Disposición de un cuarto para cocinar;
+gen dis_cuac=.;
+replace dis_cuac=0 if cocina!=.;
+replace dis_cuac=1 if cocina==2;
+replace dis_cuac=1 if cocina==1 & cocina_dor==1;
+drop cocina cocina_dor;
+
+*Tenencia de la vivienda; 
+gen ten_viv=0 if tenencia!=. | escrituras!=.;
+replace ten_viv=1 if tenencia==1 | tenencia==2 | ((tenencia>=3 & tenencia<=4) & escrituras==3);
+drop tenencia escrituras;
+
+*Disposición inadecuada de la basura;
+gen dis_basura=0 if eli_basura!=.;
+replace dis_basura=1 if (eli_basura>=4 & eli_basura<=8);
+drop eli_basura;
+
+*Frecuencia del abastecimiento de agua;
+gen dis_agua=0 if disp_agua!=. | dotac_agua!=.;
+replace dis_agua=1 if (disp_agua>=3 & disp_agua<=7) | dotac_agua==5;
+drop disp_agua dotac_agua;
+
+*Disposición de sanitario en la vivienda;
+gen dis_exc=cond((excusado==2)| (excusado==1 & sanit_agua==3),1,0);
+replace dis_exc=. if excusado==. | (excusado==1 & sanit_agua==.);
+
+sort folioviv;
+save "$bases\vivienda18.dta", replace;
+
+foreach x in 10 12 14 16 18{;
+
+**********************************************
+Educación
+*********************************************;
+
+use "$bases\poblacion`x'.dta", clear;
+
+if `x'==16 | `x'==18 {;
+*Une base de diseño muestral;
+sort folioviv foliohog numren;
+merge folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog numren;
+};
+else {;
+sort proyecto folioviv foliohog numren;
+merge proyecto folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog numren;
+}; 
+
+*Población objetivo: no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+
+*Generar el año;
+gen año=20`x';
+
+*Año de nacimiento;
+gen anac_e=.;
+replace anac_e=20`x'-edad if edad!=.;
+label var edad "Edad reportada al momento de la entrevista";
+label var anac_e "Año de nacimiento";
+
+*Inasistencia a la escuela (se reporta para personas de 3 años o más);
+gen inas_esc=.;
+replace inas_esc=0 if asis_esc=="1";
+replace inas_esc=1 if asis_esc=="2";
+label var inas_esc "Inasistencia a la escuela";
+label define inas_esc  0 "Sí asiste" 
+                       1 "No asiste";
+label value inas_esc inas_esc;
+
+*Nivel educativo;
+destring nivelaprob gradoaprob antec_esc, replace;
+gen niv_ed=.;
+replace niv_ed=0 if (nivelaprob<2) | (nivelaprob==2 & gradoaprob<6);
+replace niv_ed=1 if (nivelaprob==2 & gradoaprob==6) | 
+					(nivelaprob==3 & gradoaprob<3)  | 
+					(nivelaprob==5 | nivelaprob==6) & gradoaprob<3 & antec_esc==1;
+replace niv_ed=2 if (nivelaprob==3 & gradoaprob==3) | 
+					(nivelaprob==4) | 
+					(nivelaprob==5 & antec_esc==1 & gradoaprob>=3) |
+					(nivelaprob==6 & antec_esc==1 & gradoaprob>=3) | 
+					(nivelaprob==5 & antec_esc>=2 & antec_esc!=.)  | 
+					(nivelaprob==6 & antec_esc>=2 & antec_esc!=.)  | 
+					(nivelaprob>=7 & nivelaprob!=.);
+label var niv_ed "Nivel educativo";
+label define niv_ed  0 "Con primaria incompleta o menos" 
+                     1 "Primaria completa o secundaria incompleta"
+                     2 "Secundaria completa o mayor nivel educativo";
+label value niv_ed niv_ed;
+
+
+*Parentesco;
+gen par=.;
+replace par=1 if (parentesco>="100" & parentesco<"200");
+replace par=2 if (parentesco>="200" & parentesco<"300");
+replace par=3 if (parentesco>="300" & parentesco<"400");
+replace par=4 if parentesco=="601";
+replace par=5 if parentesco=="615";
+recode par (.=6) if par==.;
+label var par "Integrantes que tienen acceso por otros miembros 20`x'";
+label define par       1 "Jefe o jefa del hogar" 
+                       2 "Cónyuge del  jefe/a" 
+                       3 "Hijo del jefe/a" 
+                       4 "Padre o Madre del jefe/a"
+                       5 "Suegro del jefe/a"
+                       6 "Sin parentesco directo";
+label value par par;
+
+*Educación Básica;
+gen educ_basicap=.;
+replace educ_basicap=1 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) & (niv_ed==0 | niv_ed==1);
+replace educ_basicap=1 if  (edad>=16 & edad!=.) & (anac_e<=1981 & anac_e!=.) & (niv_ed==0 | niv_ed==1);
+replace educ_basicap=0 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) & (niv_ed==2);
+replace educ_basicap=0 if  (edad>=16 & edad!=.) & (anac_e<=1981 & anac_e!=.) & (niv_ed==2);
+
+*Total de integrantes del hogar;
+gen ind=1;
+
+if `x'==16 | `x'==18{;
+egen tot_ind=sum(ind), by(folioviv foliohog);
+};
+else{;
+egen tot_ind=sum(ind), by(proyecto folioviv foliohog);
+};
+
+*Indicador de carencia por rezago educativo
+*****************************************************************************
+Se considera en situación de carencia por rezago educativo 
+a la población que cumpla con alguno de los siguientes criterios:
+
+1. Se encuentra entre los 3 y los 15 años y no ha terminado la educación 
+obligatoria (secundaria terminada) o no asiste a la escuela.
+2. Tiene una edad de 16 años o más, su año de nacimiento aproximado es 1981 
+o anterior, y no dispone de primaria completa.
+3. Tiene una edad de 16 años o más, su año de nacimiento aproximado es 1982 
+en adelante, y no dispone de primaria secundaria completa.	
+*****************************************************************************;
+				
+gen ic_rezedu=.;
+replace ic_rezedu=1 if  (edad>=3 & edad<=15) & inas_esc==1 & (niv_ed==0 | niv_ed==1);
+replace ic_rezedu=1 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) 
+					  & (niv_ed==0 | niv_ed==1);
+replace ic_rezedu=1 if  (edad>=16 & edad!=.) & (anac_e<=1981) & (niv_ed==0);
+replace ic_rezedu=0 if  (edad>=0 & edad<=2);
+replace ic_rezedu=0 if  (edad>=3 & edad<=15) & inas_esc==0;
+replace ic_rezedu=0 if  (edad>=3 & edad<=15) & inas_esc==1 & (niv_ed==2);
+replace ic_rezedu=0 if  (edad>=16 & edad!=.) & (anac_e>=1982 & anac_e!=.) 
+					  & (niv_ed==2);
+replace ic_rezedu=0 if  (edad>=16 & edad!=.) & (anac_e<=1981) & (niv_ed==1 | niv_ed==2);
+label var ic_rezedu "Indicador de carencia por rezago educativo";
+label define caren 0 "No presenta carencia"
+                   1 "Presenta carencia";
+label value ic_rezedu caren ;
+
+if `x'==16 | `x'==18 {;
+keep folioviv foliohog numren edad anac_e inas_esc niv_ed par educ_basicap tot_ind ic_rezedu 
+factor est_dis upm;
+};
+else {;
+keep proyecto folioviv foliohog numren edad anac_e inas_esc niv_ed par educ_basicap tot_ind ic_rezedu 
+factor est_dis upm;
+};
+ 
+*Identifica a los hogares donde el jefe o cónyuge no cuenta con educación básica;
+gen educ=1 if (par==1 & educ_basicap==1 & edad>=16) | (par==2 & educ_basicap==1 & edad>=16);
+if `x'==16 | `x'==18{;
+collapse (sum) educ (mean) ic_rezedu factor, by(folioviv foliohog);
+};
+else {;
+collapse (sum) educ (mean) ic_rezedu factor, by(proyecto folioviv foliohog);
+};
+
+*Generar el año;
+gen año=20`x';
+
+*Educacción básica obligatoria de la jefatura del hogar y su cónyuge;
+gen id_educ=.;
+replace id_educ=1 if educ>=1 & educ!=.;
+replace id_educ=0 if educ==0;
+label var id_educ "Hogares donde el jefe o cónyuge no cuenta con educación básica";
+label define id_educ 0 "Con educación básica"
+                     1 "Sin educación básica";
+label value id_educ id_educ;
+drop educ;
+
+*Rezago educativo promedio del hogar;
+rename ic_rezedu rezedu_hog;
+label var rezedu_hog "Rezago educativo promedio del hogar";
+
+if `x'==16 | `x'==18 {;
+order folioviv foliohog factor año;
+sort folioviv foliohog;
+};
+else {;
+order proyecto folioviv foliohog factor año;
+sort proyecto folioviv foliohog;
+};
+
+save "$bases\Indcomp_edu`x'_hogar.dta", replace;
+};
+
+**********************************************
+	Salud
+*********************************************;
+
+foreach x in 10 12{;
+*Tiempo que se tardan en llegar a un hospital;
+use "$bases\hogares`x'.dta", clear;
+
+gen tiempo=1 if (tsalud1_h>=2 & tsalud1_m>0 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud2_h>=2 & tsalud2_m>0 & tsalud2_h!=. & tsalud2_h!=99 & tsalud2_h!=98) | 
+				(tsalud1_h>2 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud2_h>2 & tsalud2_h!=. & tsalud2_h!=99 & tsalud2_h!=98) |
+				(tsalud1_h==99 & tsalud1_m>0) | (tsalud2_h==99 & tsalud2_m>0);
+
+keep proyecto folioviv foliohog tiempo;
+sort proyecto folioviv foliohog;
+save "$bases\tiempo_hospital`x'.dta", replace;
+};
+
+*Tiempo que se tardan en llegar a un hospital;
+use "$bases\hogares14.dta", clear;
+
+gen tiempo=1 if (tsalud1_h>=2 & tsalud1_m>0 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h>2 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h==99 & tsalud1_m>0);
+
+keep proyecto folioviv foliohog tiempo;
+sort proyecto folioviv foliohog;
+save "$bases\tiempo_hospital14.dta", replace;
+
+use "$bases\hogares16.dta", clear;
+
+gen tiempo=1 if (tsalud1_h>=2 & tsalud1_m>0 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h>2 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h==99 & tsalud1_m>0);
+				
+save "$bases\tiempo_hospital16.dta", replace;
+				
+use "$bases\hogares18.dta", clear;
+
+gen tiempo=1 if (tsalud1_h>=2 & tsalud1_m>0 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h>2 & tsalud1_h!=. & tsalud1_h!=99 & tsalud1_h!=98) |
+				(tsalud1_h==99 & tsalud1_m>0);
+
+keep folioviv foliohog tiempo;
+sort folioviv foliohog;
+save "$bases\tiempo_hospital18.dta", replace;
+
+
+foreach x in 10 12 14 16 18{;
+
+use "$bases\poblacion`x'.dta", clear;
+
+*Une base de diseño muestral;
+if `x'==16 | `x'==18{;
+sort folioviv foliohog numren;
+merge folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog numren;
+};
+else {; 
+sort proyecto folioviv foliohog numren;
+merge proyecto folioviv foliohog using "$bases\diseño_muestral`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog numren;
+};
+
+*Población objetivo: no se incluye a huéspedes ni trabajadores domésticos;
+drop if parentesco>="400" & parentesco <"500";
+drop if parentesco>="700" & parentesco <"800";
+
+*Unir tiempo a una sucursal;
+if `x'==16 | `x'==18 {;
+sort folioviv foliohog;
+merge folioviv foliohog using "$bases\tiempo_hospital`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog;
+
+collapse (sum) tiempo (mean) factor, by(folioviv foliohog);
+};
+else {;
+sort proyecto folioviv foliohog;
+merge proyecto folioviv foliohog using "$bases\tiempo_hospital`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog;
+
+collapse (sum) tiempo (mean) factor, by(proyecto folioviv foliohog);
+};
+
+gen id_tiempo=.;  
+replace id_tiempo=1 if tiempo>=1 & tiempo!=.;
+replace id_tiempo=0 if tiempo==0;
+drop tiempo;
+label var id_tiempo "Hogares tardan más de dos horas";
+label define id_tiempo 0 "Menos de dos horas" 
+					   1 "Más de dos horas";
+label value id_tiempo id_tiempo;
+
+gen año=20`x';
+
+if `x'==16 | `x'==18{;
+order folioviv foliohog factor año;
+sort folioviv foliohog;
+};
+else {;
+order proyecto folioviv foliohog factor año;
+sort proyecto folioviv foliohog;
+}; 
+
+save "$bases\Indcomp_salud`x'_hogar.dta", replace;
+
+**********************************************
+	Vivienda
+*********************************************;
+
+use "$bases\diseño_muestral`x'.dta", clear;
+
+if `x'==16 | `x'==18{;
+sort folioviv foliohog;
+
+*Se une la base de hogares;
+merge folioviv foliohog using "$bases\hogares`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv;
+
+*Se une la base de viviendas;
+merge folioviv  using "$bases\vivienda`x'.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog;
+}; 
+else {;
+sort proyecto folioviv foliohog;
+
+*Se une la base de hogares;
+merge proyecto folioviv foliohog using "$bases\hogares`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv;
+
+*Se une la base de viviendas;
+merge proyecto folioviv  using "$bases\vivienda`x'.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog;
+}; 
+
+*Disposición de electrodomésticos;
+gen dis_elecdo=0;
+replace dis_elecdo=1 if no_tele==1 & no_lava==1 & no_refri==1 & no_estu==1;
+replace dis_elecdo=. if no_tele==. & no_lava==. & no_refri==. & no_estu==.;
+
+*Acceso a servicios de comunicación;
+gen dis_comuni=0;
+replace dis_comuni=1 if no_telef==1 |  no_cel==1 |  no_tvpaga==1 |  no_internet==1;
+
+gen año=20`x';
+ 
+label var año         "Año";
+label var dis_cuac    "Disposición de un cuarto para cocinar";
+label var ten_viv     "Tenenencia de la vivienda";
+label var dis_elecdo  "Disposición de electrodomésticos en el hogar";
+label var no_tele     "Televisión";
+label var no_refri    "Refrigerador";
+label var no_lava     "Lavadora";
+label var no_estu     "Estufa de gas o eléctrica";
+label var dis_basura  "Disposición inadecuada de la basura";
+label var dis_agua    "Frecuencia del abastecimiento de agua";
+label var dis_exc     "Disposición de sanitario en la vivienda";
+label var dis_comuni  "Acceso a servicios de comunicación";
+label var no_telef    "Línea telefónica fija";
+label var no_cel      "Telefonía móvil o celular";
+label var no_tvpaga   "Televisión de paga";            
+label var no_internet "Internet";                    
+
+label define dispone 0 "No dispone" 
+                     1 "Sí dispone";
+label value  dis_* dispone;
+
+label define no 0 "Sí" 
+                1 "No";
+label value  no_* no;
+
+if `x'==16 | `x'==18{;                  
+keep folioviv foliohog factor est_dis upm  año ten_viv dis_* no*;
+
+order folioviv foliohog factor est_dis upm año dis_cuac ten_viv dis_elecdo 
+no_tele no_refri no_lava no_estu
+dis_basura dis_agua dis_exc dis_comuni
+no_telef no_cel no_tvpaga no_internet;
+
+sort folioviv foliohog;
+}; 
+
+else {;                  
+keep proyecto folioviv foliohog factor est_dis upm  año ten_viv dis_* no*;
+
+order proyecto folioviv foliohog factor est_dis upm año dis_cuac ten_viv dis_elecdo 
+no_tele no_refri no_lava no_estu
+dis_basura dis_agua dis_exc dis_comuni
+no_telef no_cel no_tvpaga no_internet;
+
+sort proyecto folioviv foliohog;
+}; 
+
+save "$bases\Indcomp_vivienda`x'_hogar.dta", replace;
+
+*Unir los indicadores;
+if `x'==16 | `x'==18{;
+use "$bases\Indcomp_edu`x'_hogar.dta", clear;
+merge folioviv foliohog using "$bases\Indcomp_salud`x'_hogar.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog;
+
+merge folioviv foliohog using "$bases\Indcomp_vivienda`x'_hogar.dta";
+tab _merge;
+drop _merge;
+sort folioviv foliohog;
+};
+
+else {;
+use "$bases\Indcomp_edu`x'_hogar.dta", clear;
+merge proyecto folioviv foliohog using "$bases\Indcomp_salud`x'_hogar.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog;
+
+merge proyecto folioviv foliohog using "$bases\Indcomp_vivienda`x'_hogar.dta";
+tab _merge;
+drop _merge;
+sort proyecto folioviv foliohog;
+};
+
+save "$bases\Indicadores_complementarios`x'_hogar.dta", replace;
+};
+
+*Unir los diferentes años de los indicadores;
+use "$bases\Indicadores_complementarios10_hogar.dta", clear;
+append using "$bases\Indicadores_complementarios12_hogar.dta";
+append using "$bases\Indicadores_complementarios14_hogar.dta";
+append using "$bases\Indicadores_complementarios16_hogar.dta";
+append using "$bases\Indicadores_complementarios18_hogar.dta";
+
+
+
+save "$base_final\Indicadores_complementarios_hogar.dta", replace;
+
+*****************************************************************
+*PARTE 2. Tabulados de indicadores complementarios a nivel hogar
+*****************************************************************;
+
+di in green "INDICADORES COMPLEMENTARIOS: EDUCACIÓN";
+
+di in red "Educación básica obligatoria de la jefatura del hogar y su cónyuge";
+di in yellow "Porcentaje de hogares en los cuales el (la) jefe(a) y/o su cónyuge no cuentan con la educación básica obligatoria";
+********************************************************************************************************************************;
+tabstat id_educ [w=factor], by(año); 
+
+di in red "Rezago educativo promedio del hogar";
+di in yellow "Promedio de la razón del total de personas con carencia por rezago educativo en un hogar, respecto al total de integrantes del mismo";
+****************************************************************************************************************************************************;
+tabstat  rezedu_hog [w=factor], by(año);  
+
+di in green "INDICADORES COMPLEMENTARIOS: SALUD";
+
+di in red "Acceso oportuno a la atención médica";
+di in yellow "Porcentaje de hogares cuyos integrantes tardarían (o les tomaría) más de dos horas llegar a un hospital en caso de una emergencia de salud";
+*********************************************************************************************************************************************************;
+tabstat id_tiempo [w=factor], by(año); 
+
+di in green "INDICADORES COMPLEMENTARIOS: VIVIENDA";
+
+di in red "Disposición de electrodomésticos en el hogar";
+di in yellow "Porcentaje de hogares que no cuentan con televisión, refrigerador, lavadora ni estufa de gas o eléctrica";
+***********************************************************************************************************************;
+tabstat dis_elecdo [w=factor], by(año);    
+
+di in yellow "Porcentaje de hogares que no cuentan con televisión";
+tabstat no_tele [w=factor], by(año);  
+
+di in yellow "Porcentaje de hogares que no cuentan con refrigerador";
+tabstat no_refri [w=factor], by(año);  
+
+di in yellow "Porcentaje de hogares que no cuentan con lavadora";
+tabstat no_lava [w=factor], by(año);
+  
+di in yellow "Porcentaje de hogares que no cuentan con estufa de gas o eléctrica";
+tabstat no_estu [w=factor], by(año);  
+
+di in red "Disposición inadecuada de la basura";
+di in yellow "Porcentaje de hogares que queman, entierran o tiran la basura en un terreno baldío, calle, río, lago, mar o barranca";
+***********************************************************************************************************************************;
+tabstat dis_basura [w=factor], by(año); 
+
+di in red "Acceso a servicios de comunicación";
+di in yellow "Porcentaje de hogares que no disponen de los siguientes servicios de comunicación: línea telefónica fija, telefonía móvil
+o celular, televisión de paga o internet";
+***********************************************************************************************************************************; 
+tabstat dis_comuni [w=factor], by(año);  
+
+di in yellow "Porcentaje de hogares que no disponen de línea telefónica fija";
+tabstat no_telef [w=factor], by(año); 
+
+di in yellow "Porcentaje de hogares que no disponen de telefonía móvil o celular";
+tabstat  no_cel [w=factor], by(año); 
+
+di in yellow "Porcentaje de hogares que no disponen de televisión de paga";
+tabstat no_tvpaga [w=factor], by(año); 
+
+di in yellow "Porcentaje de hogares que no disponen de internet";
+tabstat no_internet [w=factor], by(año); 
+
+********************************************************************
+*PARTE 3. Tabulados de indicadores complementarios a nivel vivienda
+********************************************************************;
+
+di in green "INDICADORES COMPLEMENTARIOS: VIVIENDA";
+
+di in red "Disposición de cuarto exclusivo para cocinar";
+di in yellow "Porcentaje de hogares en viviendas donde no existe un cuarto de cocina o en las que sí existe, pero éste se usa también como dormitorio";
+******************************************************************************************************************************************************;
+tabstat dis_cuac [w=factor], by(año); 
+
+di in red "Tenencia de la vivienda";
+di in yellow "Porcentaje de hogares en viviendas rentadas, prestadas o que no disponen de escrituras";
+*****************************************************************************************************;  
+tabstat ten_viv [w=factor], by(año); 
+
+di in red "Frecuencia de abastecimiento de agua";
+di in yellow "Porcentaje de hogares en viviendas donde no se dispone de agua de la red pública o ésta no llega al menos un día a la semana";
+*******************************************************************************************************************************************;     
+tabstat dis_agua [w=factor], by(año);  
+
+di in red "Disposición de sanitario en la vivienda ";
+di in yellow "Porcentaje de hogares en viviendas sin escusado, o que cuentan con escusado, pero al que no se le puede echar agua";
+***********************************************************************************************************************************;  
+tabstat dis_exc [w=factor], by(año);
+ 
+
+log close;
